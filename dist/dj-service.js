@@ -321,10 +321,13 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
      * apiRoot, 默认的服务端主目录
      */
     var theApiRoot = './';
-    this.setApiRoot = function (apiRoot) {
+
+    function setApiRoot(apiRoot) {
       theApiRoot = apiRoot;
       if (!/\/$/.test(theApiRoot)) theApiRoot += '/';
-    };
+    }
+
+    this.setApiRoot = setApiRoot;
 
     /**
      * 登记或注销 request/response 拦截
@@ -415,6 +418,8 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
      */
     this.$get = function () {
       return {
+        setApiRoot: setApiRoot,
+        registerDefaultRequestHook: defaultRequestHook,
         registerHttpHook: registerHttpHook,
         OK: _OK,
         error: _error,
