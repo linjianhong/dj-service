@@ -220,7 +220,7 @@
      */
     var theApiRoot = './';
 
-    function setApiRoot(apiRoot){
+    function setApiRoot(apiRoot) {
       theApiRoot = apiRoot;
       if (!/\/$/.test(theApiRoot)) theApiRoot += '/';
     }
