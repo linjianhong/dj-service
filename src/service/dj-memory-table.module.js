@@ -47,7 +47,7 @@ angular.module('dj-localStorage-table', [])
         }
         return true;
       });
-      return $q.when(list);
+      return $q.when(angular.merge([],  list));
     }
 
     update(where, value, insertIfNotExist){
@@ -66,7 +66,7 @@ angular.module('dj-localStorage-table', [])
       }
       angular.extend(list[0], value);
       this.saveToLocalStorage();
-      return $q.when(list[0]);
+      return $q.when(angular.merge({},  list[0]));
     }
   }
 
