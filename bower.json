@@ -1,0 +1,23 @@
+{
+  "name": "dj-service",
+  "version": "0.1.0",
+  "authors": [
+    "linjianhong <linjianhong@github.com>"
+  ],
+  "description": "dj-service",
+  "main": [
+    "dist/dj-service.js"
+  ],
+  "keywords": [
+    "dj",
+    "angular",
+    "http",
+    "localStorage",
+    "wx",
+    "jssdk"
+  ],
+  "dependencies": {
+  },
+  "license": "dj",
+  "homepage": "https://github.com/linjianhong/dj-service"
+}
