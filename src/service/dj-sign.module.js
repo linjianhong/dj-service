@@ -219,11 +219,13 @@
      * apiRoot, 默认的服务端主目录
      */
     var theApiRoot = './';
-    this.setApiRoot = (apiRoot) => {
+
+    function setApiRoot(apiRoot){
       theApiRoot = apiRoot;
       if (!/\/$/.test(theApiRoot)) theApiRoot += '/';
     }
 
+    this.setApiRoot = setApiRoot;
 
     /**
      * 登记或注销 request/response 拦截
@@ -318,6 +320,8 @@
      */
     this.$get = function () {
       return {
+        setApiRoot,
+        registerDefaultRequestHook: defaultRequestHook,
         registerHttpHook,
         OK,
         error,
