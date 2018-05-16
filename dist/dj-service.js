@@ -62,7 +62,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
             }
             return true;
           });
-          return $q.when(list);
+          return $q.when(angular.merge([], list));
         }
       }, {
         key: 'update',
@@ -86,7 +86,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
           }
           angular.extend(list[0], value);
           this.saveToLocalStorage();
-          return $q.when(list[0]);
+          return $q.when(angular.merge({}, list[0]));
         }
       }]);
 
