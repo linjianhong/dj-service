@@ -1,10 +1,9 @@
 !(function (angular, window, undefined) {
-
+  var moduleLocalStorageTable = angular.module('dj-localStorage-table', []);
   /**
    * 本地存贮数据表工厂
    */
-  angular.module('dj-localStorage-table', [])
-    .factory('LocalStorageTable', ['$q', function ($q) {
+  moduleLocalStorageTable.factory('LocalStorageTable', ['$q', function ($q) {
       class LocalStorageTable {
         constructor(tableName) {
           this.tableName = tableName;
@@ -74,4 +73,57 @@
 
     }]);
 
-})(angular, window);
+  moduleLocalStorageTable.factory("LocalTable", ['$http', '$q', 'LocalStorageTable', function ($http, $q, LocalStorageTable) {
+
+    function Table(name) {
+      if (!Table[name]) {
+        Table[name] = new LocalStorageTable("fac-table-" + name);
+      }
+      return Table[name];
+    }
+
+    var DEFAULT_OPTIONS = {
+      name: 'default',
+      ac: 'default',
+      empty: "",
+    };
+
+    function LocalTable(ac, name, empty) {
+      if (!(this instanceof LocalTable)) { return new LocalTable(name, ac, empty); }
+      var options = {};
+      if (angular.isObject(ac)) {
+        options = ac;
+      }
+      else if (angular.isString(ac)) {
+        options.ac = ac;
+        options.empty = empty || "";
+        if (!ac || !angular.isString(name)) {
+          options.name = name;
+        }
+      }
+      this.options = angular.mergy({}, DEFAULT_OPTIONS, options);
+      this.table = Table(this.options.name);
+    }
+    LocalTable.prototype = {
+
+      load: function () {
+        return this.table.select({ ac: this.options.ac }).then(list => list[0]).catch(e => this.options.empty);
+      },
+      save: function (data) {
+        return this.table.update({ ac: this.options.ac }, data, true)
+      },
+
+    }
+
+    LocalTable.load = function (name, ac, empty) {
+      return Table(name).select({ ac }).then(list => list[0]).catch(e => empty);
+    };
+    LocalTable.save = function (name, ac, data) {
+      return Table(name).update({ ac }, data, true);
+    };
+
+    return LocalTable
+  }]);
+
+
+})(window.angular, window);
