@@ -116,7 +116,7 @@
     }
 
     LocalTable.load = function (name, ac, empty) {
-      return Table(name).select({ ac }).then(list => list[0]).catch(e => empty);
+      return Table(name).select({ ac }).then(list => list[0] || empty).catch(e => empty);
     };
     LocalTable.save = function (name, ac, data) {
       return Table(name).update({ ac }, data, true);
