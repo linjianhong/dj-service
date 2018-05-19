@@ -70,7 +70,7 @@
       $q,
       $http,
       OK: function (datas, other) {
-        return CHttpMockResponse.resolve(OK(datas, other));
+        return CHttpMockResponse.resolve($q.when(datas).then(datas=>OK(datas, other)));
       },
       error: function (errcode, errmsg, other) {
         return CHttpMockResponse.reject(error(errcode, errmsg, other));
@@ -323,7 +323,9 @@
         setApiRoot,
         registerDefaultRequestHook: defaultRequestHook,
         registerHttpHook,
-        OK,
+        OK: function(datas, other){
+          return $q.when(datas).then(datas=>OK(datas, other));
+        },
         error,
         hookRequest: hookRequest,
         hookResponse: hookResponse,
