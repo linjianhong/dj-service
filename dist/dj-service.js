@@ -5,11 +5,11 @@ var _createClass = function () { function defineProperties(target, props) { for 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 !function (angular, window, undefined) {
-
+  var moduleLocalStorageTable = angular.module('dj-localStorage-table', []);
   /**
    * 本地存贮数据表工厂
    */
-  angular.module('dj-localStorage-table', []).factory('LocalStorageTable', ['$q', function ($q) {
+  moduleLocalStorageTable.factory('LocalStorageTable', ['$q', function ($q) {
     var LocalStorageTable = function () {
       function LocalStorageTable(tableName) {
         _classCallCheck(this, LocalStorageTable);
@@ -95,7 +95,70 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
     return LocalStorageTable;
   }]);
-}(angular, window);
+
+  moduleLocalStorageTable.factory("LocalTable", ['$http', '$q', 'LocalStorageTable', function ($http, $q, LocalStorageTable) {
+
+    function Table(name) {
+      if (!Table[name]) {
+        Table[name] = new LocalStorageTable("fac-table-" + name);
+      }
+      return Table[name];
+    }
+
+    var DEFAULT_OPTIONS = {
+      name: 'default',
+      ac: 'default',
+      empty: ""
+    };
+
+    function LocalTable(ac, name, empty) {
+      if (!(this instanceof LocalTable)) {
+        return new LocalTable(name, ac, empty);
+      }
+      var options = {};
+      if (angular.isObject(ac)) {
+        options = ac;
+      } else if (angular.isString(ac)) {
+        options.ac = ac;
+        options.empty = empty || "";
+        if (!ac || !angular.isString(name)) {
+          options.name = name;
+        }
+      }
+      this.options = angular.mergy({}, DEFAULT_OPTIONS, options);
+      this.table = Table(this.options.name);
+    }
+    LocalTable.prototype = {
+
+      load: function load() {
+        var _this3 = this;
+
+        return this.table.select({ ac: this.options.ac }).then(function (list) {
+          return list[0];
+        }).catch(function (e) {
+          return _this3.options.empty;
+        });
+      },
+      save: function save(data) {
+        return this.table.update({ ac: this.options.ac }, data, true);
+      }
+
+    };
+
+    LocalTable.load = function (name, ac, empty) {
+      return Table(name).select({ ac: ac }).then(function (list) {
+        return list[0] || empty;
+      }).catch(function (e) {
+        return empty;
+      });
+    };
+    LocalTable.save = function (name, ac, data) {
+      return Table(name).update({ ac: ac }, data, true);
+    };
+
+    return LocalTable;
+  }]);
+}(window.angular, window);
 
 !function (angular, window, undefined) {
 
@@ -172,7 +235,9 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
       $q: $q,
       $http: $http,
       OK: function OK(datas, other) {
-        return _CHttpMockResponse.resolve(_OK(datas, other));
+        return _CHttpMockResponse.resolve($q.when(datas).then(function (datas) {
+          return _OK(datas, other);
+        }));
       },
       error: function error(errcode, errmsg, other) {
         return _CHttpMockResponse.reject(_error(errcode, errmsg, other));
@@ -421,7 +486,11 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         setApiRoot: setApiRoot,
         registerDefaultRequestHook: defaultRequestHook,
         registerHttpHook: registerHttpHook,
-        OK: _OK,
+        OK: function OK(datas, other) {
+          return $q.when(datas).then(function (datas) {
+            return _OK(datas, other);
+          });
+        },
         error: _error,
         hookRequest: hookRequest,
         hookResponse: hookResponse,
