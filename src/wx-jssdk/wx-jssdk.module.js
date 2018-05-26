@@ -84,10 +84,72 @@
 
   }]);
 
+  /** 提供 JSSDK 功能 */
+  theModule.factory('WxJssdk', ['$http', '$q', function ($http, $q) {
+    // ------------------------ 接口 ------------------------
+    function reshare(wx, options) {
+      var deferTimeline = $q.defer();
+      var deferAppMessage = $q.defer();
+      //分享到朋友圈
+      wx.onMenuShareTimeline({
+        title: options.shareTitle, // 分享标题
+        link: options.link, // 分享链接
+        imgUrl: options.imgUrl, // 分享图标
+        success: function (res) {
+          deferTimeline.resolve(res);
+        },
+        cancel: function (res) {
+          deferTimeline.reject(res);
+        }
+      });
+      //分享给朋友
+      wx.onMenuShareAppMessage({
+        title: options.title, // 分享标题
+        desc: options.desc, // 分享描述
+        link: options.link, // 分享链接
+        imgUrl: options.imgUrl, // 分享图标
+        type: options.type || 'link', // 分享类型,music、video或link，不填默认为link
+        dataUrl: options.dataUrl || '', // 如果type是music或video，则要提供数据链接，默认为空
+        success: function (res) {
+          deferAppMessage.resolve(res);
+        },
+        cancel: function (res) {
+          deferAppMessage.reject(res);
+        }
+      });
+      return {
+        onMenuShareTimeline: deferTimeline.promise,
+        onMenuShareAppMessage: deferAppMessage.promise,
+      }
+    };
+
+    return {
+      initWx: function () { return initWx(); },
+      setShare: function (options) {
+        var defaultShare = window.theSiteConfig && window.theSiteConfig.wx_share || {};
+        options = angular.extend({}, defaultShare, options);
+        options.shareTitle = options.shareTitle || options.title; // 发送到朋友圈标题
+
+        return initWx().then(wx => reshare(wx, options));
+      },
+    }
+  }]);
+
 
 
   /** 提供 JSSDK 功能 */
-  theModule.run(['$rootScope', '$http', '$q', 'sign', function ($rootScope, $http, $q, sign) {
+  theModule.run(['$rootScope', '$http', '$q', 'sign', 'WxJssdk', function ($rootScope, $http, $q, sign, WxJssdk) {
+
+    /**
+     * 用 $http 模拟 WX-JSSDK
+     */
+    sign.registerHttpHook({
+      match: /^WxJssdk\/(.*)$/i,
+      hookRequest: function (config, mockResponse, match) {
+        return mockResponse.resolve(WxJssdk[match[1]]());
+      }
+    });
+
 
     /**
      * 请求二维码扫描
