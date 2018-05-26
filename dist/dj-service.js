@@ -5,6 +5,171 @@ var _createClass = function () { function defineProperties(target, props) { for 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 !function (angular, window, undefined) {
+  // 只在微信浏览器中运行
+  // @var useWX: 是否应该使用微信 JSSDK
+  var isWx = /micromessenger/i.test(navigator.userAgent);
+  var useWX = location.origin.length > 12 && location.origin.indexOf('192.168') < 0 && isWx;
+  var _initWx;
+  var theModule = angular.module('wx-jssdk', []);
+  var theCounter = 80000;
+
+  /** 微信 JSSDK 初始化 */
+  theModule.run(['$http', '$q', function ($http, $q) {
+
+    _initWx = function initWx() {
+      // 只在微信浏览器中运行
+      if (!useWX) return $q.reject('not wx');
+      if (_initWx.promise) {
+        return $q.when(_initWx.promise);
+      }
+
+      var deferred = $q.defer();
+      var wx_app_name = window.theSiteConfig && window.theSiteConfig.wx_app.wx.name || 'pgy-wx';
+      var url = location.href.split('#')[0];
+
+      $http.post("app/jsapi_sign", { name: wx_app_name, url: encodeURIComponent(url) }).then(function (json) {
+        var config = json.datas.config;
+        if (!config) {
+          deferred.reject('config error!');
+          return;
+        }
+        wx.config({
+          debug: false,
+          appId: config.appId,
+          timestamp: config.timestamp,
+          nonceStr: config.nonceStr,
+          signature: config.signature,
+          jsApiList: [
+          // 所有要调用的 API 都要加到这个列表中
+          'onMenuShareTimeline', 'onMenuShareAppMessage', 'onMenuShareQQ', 'onMenuShareWeibo', 'onMenuShareQZone', 'startRecord', 'stopRecord', 'onVoiceRecordEnd', 'playVoice', 'pauseVoice', 'stopVoice', 'onVoicePlayEnd', 'uploadVoice', 'downloadVoice', 'chooseImage', 'previewImage', 'uploadImage', 'downloadImage', 'translateVoice', 'getNetworkType', 'openLocation', 'getLocation', 'hideOptionMenu', 'showOptionMenu', 'hideMenuItems', 'showMenuItems', 'hideAllNonBaseMenuItem', 'showAllNonBaseMenuItem', 'closeWindow', 'scanQRCode', 'chooseWXPay']
+        });
+
+        wx.ready(function () {
+          deferred.resolve(_initWx.promise = wx);
+        });
+      }).catch(function (e) {
+        deferred.reject('getWjSign error!');
+      });
+
+      return _initWx.promise = deferred.promise;
+    };
+  }]);
+
+  /** 提供 JSSDK 功能 */
+  theModule.factory('WxJssdk', ['$http', '$q', function ($http, $q) {
+    // ------------------------ 接口 ------------------------
+    function reshare(wx, options) {
+      var deferTimeline = $q.defer();
+      var deferAppMessage = $q.defer();
+      //分享到朋友圈
+      wx.onMenuShareTimeline({
+        title: options.shareTitle, // 分享标题
+        link: options.link, // 分享链接
+        imgUrl: options.imgUrl, // 分享图标
+        success: function success(res) {
+          deferTimeline.resolve(res);
+        },
+        cancel: function cancel(res) {
+          deferTimeline.reject(res);
+        }
+      });
+      //分享给朋友
+      wx.onMenuShareAppMessage({
+        title: options.title, // 分享标题
+        desc: options.desc, // 分享描述
+        link: options.link, // 分享链接
+        imgUrl: options.imgUrl, // 分享图标
+        type: options.type || 'link', // 分享类型,music、video或link，不填默认为link
+        dataUrl: options.dataUrl || '', // 如果type是music或video，则要提供数据链接，默认为空
+        success: function success(res) {
+          deferAppMessage.resolve(res);
+        },
+        cancel: function cancel(res) {
+          deferAppMessage.reject(res);
+        }
+      });
+      return {
+        onMenuShareTimeline: deferTimeline.promise,
+        onMenuShareAppMessage: deferAppMessage.promise
+      };
+    };
+
+    return {
+      initWx: function initWx() {
+        return _initWx();
+      },
+      setShare: function setShare(options) {
+        var defaultShare = window.theSiteConfig && window.theSiteConfig.wx_share || {};
+        options = angular.extend({}, defaultShare, options);
+        options.shareTitle = options.shareTitle || options.title; // 发送到朋友圈标题
+
+        return _initWx().then(function (wx) {
+          return reshare(wx, options);
+        });
+      }
+    };
+  }]);
+
+  /** 提供 JSSDK 功能 */
+  theModule.run(['$rootScope', '$http', '$q', 'sign', 'WxJssdk', function ($rootScope, $http, $q, sign, WxJssdk) {
+
+    /**
+     * 用 $http 模拟 WX-JSSDK
+     */
+    sign.registerHttpHook({
+      match: /^WxJssdk\/(.*)$/i,
+      hookRequest: function hookRequest(config, mockResponse, match) {
+        return mockResponse.resolve(WxJssdk[match[1]]());
+      }
+    });
+
+    /**
+     * 请求二维码扫描
+     */
+    sign.registerHttpHook({
+      match: /^扫描二维码$/,
+      hookRequest: function hookRequest(config, mockResponse) {
+        var deferred = $q.defer();
+        _initWx().then(function (wx) {
+          wx.scanQRCode({
+            needResult: 1, // 默认为0，扫描结果由微信处理，1则直接返回扫描结果，
+            scanType: ["qrCode", "barCode"], // 可以指定扫二维码还是一维码，默认二者都有
+            success: function success(res) {
+              var result = res.resultStr; // 当needResult 为 1 时，扫码返回的结果
+              console.log('扫描结果 = ', result);
+              deferred.resolve(result);
+            },
+            fail: function fail(res) {
+              deferred.reject(res);
+            }
+          });
+        }).catch(function (e) {
+          deferred.resolve('10' + ++theCounter);
+          //deferred.reject(e);
+          //console.log("请求二维码扫描错误", e);
+        });
+        return mockResponse.resolve(deferred.promise);
+      }
+    });
+
+    /**
+     * 请求二维码扫描（模拟，用于调试）
+     */
+    sign.registerHttpHook({
+      match: /^模拟扫描二维码$/,
+      hookRequest: function hookRequest(config, mockResponse) {
+        var deferred = $q.defer();
+        window.setTimeout(function () {
+          console.log('模拟扫描结果 = ', config.data || '模拟数据');
+          deferred.resolve(config.data || '模拟数据');
+        }, 120);
+        return mockResponse.resolve(deferred.promise);
+      }
+    });
+  }]);
+}(angular, window);
+
+!function (angular, window, undefined) {
   var moduleLocalStorageTable = angular.module('dj-localStorage-table', []);
   /**
    * 本地存贮数据表工厂
@@ -486,11 +651,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         setApiRoot: setApiRoot,
         registerDefaultRequestHook: defaultRequestHook,
         registerHttpHook: registerHttpHook,
-        OK: function OK(datas, other) {
-          return $q.when(datas).then(function (datas) {
-            return _OK(datas, other);
-          });
-        },
+        OK: _OK,
         error: _error,
         hookRequest: hookRequest,
         hookResponse: hookResponse,
@@ -568,102 +729,67 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
   }]);
 }(angular, window);
 
-!function (angular, window, undefined) {
-  // 只在微信浏览器中运行
-  // @var useWX: 是否应该使用微信 JSSDK
-  var isWx = /micromessenger/i.test(navigator.userAgent);
-  var useWX = location.origin.length > 12 && location.origin.indexOf('192.168') < 0 && isWx;
-  var _initWx;
-  var theModule = angular.module('wx-jssdk', []);
-  var theCounter = 80000;
+!function (window, angular, undefined) {
+  var theModule = angular.module('component-interceptor', []);
 
-  /** 微信 JSSDK 初始化 */
-  theModule.run(['$http', '$q', function ($http, $q) {
-
-    _initWx = function initWx() {
-      // 只在微信浏览器中运行
-      if (!useWX) return $q.reject('not wx');
-      if (_initWx.promise) {
-        return $q.when(_initWx.promise);
-      }
-
-      var deferred = $q.defer();
-      var wx_app_name = window.theSiteConfig && window.theSiteConfig.wx_app.wx.name || 'pgy-wx';
-      var url = location.href.split('#')[0];
-
-      $http.post("app/jsapi_sign", { name: wx_app_name, url: encodeURIComponent(url) }).then(function (json) {
-        var config = json.datas.config;
-        if (!config) {
-          deferred.reject('config error!');
-          return;
-        }
-        wx.config({
-          debug: false,
-          appId: config.appId,
-          timestamp: config.timestamp,
-          nonceStr: config.nonceStr,
-          signature: config.signature,
-          jsApiList: [
-          // 所有要调用的 API 都要加到这个列表中
-          'onMenuShareTimeline', 'onMenuShareAppMessage', 'onMenuShareQQ', 'onMenuShareWeibo', 'onMenuShareQZone', 'startRecord', 'stopRecord', 'onVoiceRecordEnd', 'playVoice', 'pauseVoice', 'stopVoice', 'onVoicePlayEnd', 'uploadVoice', 'downloadVoice', 'chooseImage', 'previewImage', 'uploadImage', 'downloadImage', 'translateVoice', 'getNetworkType', 'openLocation', 'getLocation', 'hideOptionMenu', 'showOptionMenu', 'hideMenuItems', 'showMenuItems', 'hideAllNonBaseMenuItem', 'showAllNonBaseMenuItem', 'closeWindow', 'scanQRCode', 'chooseWXPay']
-        });
-
-        wx.ready(function () {
-          deferred.resolve(_initWx.promise = wx);
-        });
-      }).catch(function (e) {
-        deferred.reject('getWjSign error!');
-      });
-
-      return _initWx.promise = deferred.promise;
+  /**
+   * 拦截 angular 的默认组件构造方法，并重写
+   */
+  theModule.config(["$compileProvider", function ($compile) {
+    var fn = $compile.component;
+    $compile.component = function (name, options) {
+      RegisterComponent(name, options);
+      fn.call(this, name, options);
     };
   }]);
 
-  /** 提供 JSSDK 功能 */
-  theModule.run(['$rootScope', '$http', '$q', 'sign', function ($rootScope, $http, $q, sign) {
+  /**
+   * 拦截登记
+   */
+  function RegisterComponent(componentName, options) {
+    RegisterComponent[componentName] = options;
+  };
 
-    /**
-     * 请求二维码扫描
-     */
-    sign.registerHttpHook({
-      match: /^扫描二维码$/,
-      hookRequest: function hookRequest(config, mockResponse) {
-        var deferred = $q.defer();
-        _initWx().then(function (wx) {
-          wx.scanQRCode({
-            needResult: 1, // 默认为0，扫描结果由微信处理，1则直接返回扫描结果，
-            scanType: ["qrCode", "barCode"], // 可以指定扫二维码还是一维码，默认二者都有
-            success: function success(res) {
-              var result = res.resultStr; // 当needResult 为 1 时，扫码返回的结果
-              console.log('扫描结果 = ', result);
-              deferred.resolve(result);
-            },
-            fail: function fail(res) {
-              deferred.reject(res);
-            }
-          });
-        }).catch(function (e) {
-          deferred.resolve('10' + ++theCounter);
-          //deferred.reject(e);
-          //console.log("请求二维码扫描错误", e);
-        });
-        return mockResponse.resolve(deferred.promise);
-      }
-    });
-
-    /**
-     * 请求二维码扫描（模拟，用于调试）
-     */
-    sign.registerHttpHook({
-      match: /^模拟扫描二维码$/,
-      hookRequest: function hookRequest(config, mockResponse) {
-        var deferred = $q.defer();
-        window.setTimeout(function () {
-          console.log('模拟扫描结果 = ', config.data || '模拟数据');
-          deferred.resolve(config.data || '模拟数据');
-        }, 120);
-        return mockResponse.resolve(deferred.promise);
-      }
-    });
+  /**
+   * 拦截服务
+   */
+  theModule.provider("componentInterceptor", [function () {
+    this.RegisterComponent = RegisterComponent;
+    this.$get = function () {
+      return RegisterComponent;
+    };
   }]);
-}(angular, window);
+
+  theModule.component('djView', {
+    bindings: {
+      component: '@'
+    },
+    controller: ['$scope', '$element', '$compile', function ($scope, $element, $compile) {
+      var _this4 = this;
+
+      this.$onChanges = function (changes) {
+        compileComponent(_this4.component);
+      };
+
+      /** 编译生成动态组件 */
+      var compileComponent = function compileComponent(name) {
+        if (!name) {
+          $element.html("");
+          return;
+        }
+        var a = $scope.$emit("dj-view-start", RegisterComponent[transformStr(name)]);
+        $element.html('<' + name + '></' + name + '>');
+        $compile($element.contents())($scope);
+      };
+    }]
+  });
+
+  /**
+   * 字符串转成驼峰
+   */
+  function transformStr(str) {
+    return str.replace(/-(\w)/g, function ($0, $1) {
+      return $1.toUpperCase();
+    });
+  }
+}(window, angular);
