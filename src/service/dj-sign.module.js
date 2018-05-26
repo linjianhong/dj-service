@@ -323,9 +323,7 @@
         setApiRoot,
         registerDefaultRequestHook: defaultRequestHook,
         registerHttpHook,
-        OK: function(datas, other){
-          return $q.when(datas).then(datas=>OK(datas, other));
-        },
+        OK,
         error,
         hookRequest: hookRequest,
         hookResponse: hookResponse,
